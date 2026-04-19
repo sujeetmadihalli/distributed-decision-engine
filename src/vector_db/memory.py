@@ -1,25 +1,27 @@
 from qdrant_client import QdrantClient
 from qdrant_client.http import models
+from sentence_transformers import SentenceTransformer
 import logging
 import uuid
+import os
 
 logger = logging.getLogger(__name__)
 
-class MockEmbeddings:
-    def __init__(self, size=384):
-        self.size = size
-    def embed_query(self, text: str):
-        return [0.1] * self.size
-    def embed_documents(self, texts: list):
-        return [[0.1] * self.size for _ in texts]
+QDRANT_URL = os.getenv("QDRANT_URL", "http://localhost:6333")
+EMBED_MODEL = os.getenv("EMBED_MODEL", "all-MiniLM-L6-v2")
+COLLECTION_NAME = os.getenv("QDRANT_COLLECTION", "telemetry_events")
+
 
 class MemoryLayer:
-    def __init__(self, collection_name="telemetry_events"):
-        # Using in-memory Qdrant to bypass Docker hangs on WSL2
-        self.client = QdrantClient(":memory:")
+    def __init__(self, collection_name: str = COLLECTION_NAME, use_local: bool = False):
+        url = os.getenv("QDRANT_URL", "http://localhost:6333")
+        if use_local or url == ":memory:":
+            self.client = QdrantClient(":memory:")
+        else:
+            self.client = QdrantClient(url=url)
         self.collection_name = collection_name
-        # Using MockEmbeddings to bypass PyTorch WSL2 CUDA deadlocks for Phase 1 verification
-        self.embeddings = MockEmbeddings(size=384)
+        self.embedder = SentenceTransformer(EMBED_MODEL)
+        self.vector_size = self.embedder.get_embedding_dimension()
         self._ensure_collection_exists()
 
     def _ensure_collection_exists(self):
@@ -29,16 +31,20 @@ class MemoryLayer:
                 self.client.create_collection(
                     collection_name=self.collection_name,
                     vectors_config=models.VectorParams(
-                        size=384, # Size for all-MiniLM-L6-v2
-                        distance=models.Distance.COSINE
-                    )
+                        size=self.vector_size,
+                        distance=models.Distance.COSINE,
+                    ),
                 )
-                logger.info(f"Created collection {self.collection_name}")
-        except Exception as e:
-            logger.error(f"Failed to ensure collection exists: {e}")
+                logger.info("Created collection %s", self.collection_name)
+        except Exception:
+            logger.exception("Failed to ensure collection exists")
+            raise
+
+    def embed(self, text: str) -> list[float]:
+        return self.embedder.encode(text).tolist()
 
     def store_event(self, text: str, metadata: dict):
-        vector = self.embeddings.embed_query(text)
+        vector = self.embed(text)
         event_id_str = metadata.get("event_id", str(uuid.uuid4()))
         point_id = str(uuid.uuid5(uuid.NAMESPACE_DNS, event_id_str))
         self.client.upsert(
@@ -47,16 +53,16 @@ class MemoryLayer:
                 models.PointStruct(
                     id=point_id,
                     vector=vector,
-                    payload={"text": text, **metadata}
+                    payload={"text": text, **metadata},
                 )
-            ]
+            ],
         )
 
-    def search_similar(self, query: str, limit: int = 5):
-        query_vector = self.embeddings.embed_query(query)
-        hits = self.client.search(
+    def search_similar(self, query: str, limit: int = 5) -> list[dict]:
+        query_vector = self.embed(query)
+        results = self.client.query_points(
             collection_name=self.collection_name,
-            query_vector=query_vector,
-            limit=limit
+            query=query_vector,
+            limit=limit,
         )
-        return [hit.payload for hit in hits]
+        return [point.payload for point in results.points]

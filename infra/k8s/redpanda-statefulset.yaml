@@ -1,0 +1,67 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: redpanda
+  namespace: decision-engine
+spec:
+  serviceName: redpanda
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redpanda
+  template:
+    metadata:
+      labels:
+        app: redpanda
+    spec:
+      containers:
+        - name: redpanda
+          image: docker.redpanda.com/redpandadata/redpanda:v24.1.1
+          args:
+            - redpanda
+            - start
+            - --kafka-addr internal://0.0.0.0:9092
+            - --advertise-kafka-addr internal://redpanda:9092
+            - --smp 1
+            - --memory 512M
+            - --overprovisioned
+          ports:
+            - containerPort: 9092
+              name: kafka
+            - containerPort: 9644
+              name: admin
+          volumeMounts:
+            - name: redpanda-data
+              mountPath: /var/lib/redpanda/data
+          resources:
+            requests:
+              cpu: 500m
+              memory: 512Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi
+  volumeClaimTemplates:
+    - metadata:
+        name: redpanda-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 10Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redpanda
+  namespace: decision-engine
+spec:
+  selector:
+    app: redpanda
+  ports:
+    - port: 9092
+      targetPort: 9092
+      name: kafka
+    - port: 9644
+      targetPort: 9644
+      name: admin
+  type: ClusterIP

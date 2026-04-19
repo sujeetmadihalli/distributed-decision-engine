@@ -3,3 +3,13 @@ __pycache__/
 *.pyc
 .env
 .pytest_cache/
+checkpoints/
+*.egg-info/
+dist/
+build/
+.terraform/
+*.tfstate*
+.terraform.lock.hcl
+qdrant_storage/
+redpanda_data/
+api.log

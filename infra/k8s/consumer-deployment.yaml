@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: decision-engine-consumer
+  namespace: decision-engine
+  labels:
+    app: decision-engine-consumer
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: decision-engine-consumer
+  template:
+    metadata:
+      labels:
+        app: decision-engine-consumer
+    spec:
+      containers:
+        - name: consumer
+          image: REGISTRY_URL/decision-engine-consumer:latest
+          env:
+            - name: QDRANT_URL
+              value: "http://qdrant:6333"
+            - name: KAFKA_BOOTSTRAP
+              value: "redpanda:9092"
+            - name: USE_MOCK_LLM
+              value: "false"
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: decision-engine-secrets
+                  key: openai-api-key
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi

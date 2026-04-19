@@ -1,0 +1,92 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: decision-engine-api
+  namespace: decision-engine
+  labels:
+    app: decision-engine-api
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: decision-engine-api
+  template:
+    metadata:
+      labels:
+        app: decision-engine-api
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8000"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+        - name: api
+          image: REGISTRY_URL/decision-engine-api:latest
+          ports:
+            - containerPort: 8000
+          env:
+            - name: QDRANT_URL
+              value: "http://qdrant:6333"
+            - name: KAFKA_BOOTSTRAP
+              value: "redpanda:9092"
+            - name: ENABLE_KAFKA
+              value: "true"
+            - name: USE_MOCK_LLM
+              value: "false"
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: decision-engine-secrets
+                  key: openai-api-key
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 15
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: decision-engine-api
+  namespace: decision-engine
+spec:
+  selector:
+    app: decision-engine-api
+  ports:
+    - port: 80
+      targetPort: 8000
+  type: ClusterIP
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: decision-engine-api-hpa
+  namespace: decision-engine
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: decision-engine-api
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70

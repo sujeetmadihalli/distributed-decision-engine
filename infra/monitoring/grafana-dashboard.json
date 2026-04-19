@@ -1,0 +1,66 @@
+{
+  "dashboard": {
+    "title": "Decision Engine",
+    "uid": "decision-engine-main",
+    "panels": [
+      {
+        "title": "Events Ingested (rate/min)",
+        "type": "timeseries",
+        "targets": [{"expr": "rate(decision_engine_events_ingested_total[1m])"}],
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0}
+      },
+      {
+        "title": "Decisions by Action (rate/min)",
+        "type": "timeseries",
+        "targets": [{"expr": "rate(decision_engine_decisions_total[1m])"}],
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0}
+      },
+      {
+        "title": "Ingest Latency (p50/p95/p99)",
+        "type": "timeseries",
+        "targets": [
+          {"expr": "histogram_quantile(0.50, rate(decision_engine_ingest_seconds_bucket[5m]))", "legendFormat": "p50"},
+          {"expr": "histogram_quantile(0.95, rate(decision_engine_ingest_seconds_bucket[5m]))", "legendFormat": "p95"},
+          {"expr": "histogram_quantile(0.99, rate(decision_engine_ingest_seconds_bucket[5m]))", "legendFormat": "p99"}
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8}
+      },
+      {
+        "title": "LLM Latency (p50/p95)",
+        "type": "timeseries",
+        "targets": [
+          {"expr": "histogram_quantile(0.50, rate(decision_engine_llm_seconds_bucket[5m]))", "legendFormat": "p50"},
+          {"expr": "histogram_quantile(0.95, rate(decision_engine_llm_seconds_bucket[5m]))", "legendFormat": "p95"}
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8}
+      },
+      {
+        "title": "Vector Search Latency (p50/p95)",
+        "type": "timeseries",
+        "targets": [
+          {"expr": "histogram_quantile(0.50, rate(decision_engine_vector_search_seconds_bucket[5m]))", "legendFormat": "p50"},
+          {"expr": "histogram_quantile(0.95, rate(decision_engine_vector_search_seconds_bucket[5m]))", "legendFormat": "p95"}
+        ],
+        "gridPos": {"h": 8, "w": 8, "x": 0, "y": 16}
+      },
+      {
+        "title": "Burst Detections",
+        "type": "stat",
+        "targets": [{"expr": "sum(decision_engine_burst_detections_total)"}],
+        "gridPos": {"h": 8, "w": 4, "x": 8, "y": 16}
+      },
+      {
+        "title": "Active Windows",
+        "type": "gauge",
+        "targets": [{"expr": "decision_engine_active_windows"}],
+        "gridPos": {"h": 8, "w": 4, "x": 12, "y": 16}
+      },
+      {
+        "title": "RL Recommendations by Action",
+        "type": "piechart",
+        "targets": [{"expr": "decision_engine_rl_recommendations_total"}],
+        "gridPos": {"h": 8, "w": 8, "x": 16, "y": 16}
+      }
+    ]
+  }
+}
